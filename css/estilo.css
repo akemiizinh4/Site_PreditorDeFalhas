@@ -196,6 +196,40 @@ section.alt { background: var(--fundo-2); border-block: 1px solid var(--borda); 
 .etapa b { font-size: 0.92rem; font-weight: 700; line-height: 1.25; }
 .etapa span { color: var(--texto-suave); font-size: 0.79rem; line-height: 1.45; }
 
+/* ---------- schema do pipeline: entradas, etapas e saídas ---------- */
+.esquema { margin-top: 34px; display: grid; gap: 14px; }
+.esquema-titulo { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--roxo-claro); }
+.esquema-cabeca, .esquema-linha { display: grid; grid-template-columns: 1fr 1.1fr 1fr; gap: 12px; }
+.esquema-cabeca span { font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--texto-suave); padding-left: 4px; }
+.esquema-cabeca span:nth-child(2) { color: var(--ciano); }
+.esquema .cel {
+  background: var(--vidro); border: 1px solid var(--borda); border-radius: 12px; padding: 13px 16px;
+  font-size: 0.85rem; line-height: 1.5; color: var(--texto-suave); min-width: 0;
+  display: grid; align-content: center; gap: 3px;
+}
+.esquema .cel.passo {
+  position: relative; color: var(--texto);
+  border-color: rgba(0, 245, 255, 0.3); background: rgba(0, 245, 255, 0.05);
+}
+.esquema .cel.passo .n { font-family: var(--mono); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.12em; color: var(--ciano); }
+.esquema .cel.passo b { font-size: 0.95rem; font-weight: 700; }
+.esquema-linha:not(:last-child) .cel.passo::after {
+  content: ""; position: absolute; left: 50%; bottom: -14px; width: 1px; height: 14px;
+  background: linear-gradient(var(--roxo-claro), transparent);
+}
+.esquema .cel .destaque { color: var(--texto); font-weight: 600; }
+@media (max-width: 860px) {
+  .esquema-cabeca { display: none; }
+  .esquema-linha { grid-template-columns: minmax(0, 1fr); gap: 7px; padding-bottom: 14px; }
+  .esquema-linha:not(:last-child) { border-bottom: 1px solid var(--borda); }
+  .esquema-linha:not(:last-child) .cel.passo::after { display: none; }
+  .esquema .cel.entrada::before, .esquema .cel.saida::before {
+    font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--texto-suave);
+  }
+  .esquema .cel.entrada::before { content: "Entrada"; }
+  .esquema .cel.saida::before { content: "Saída"; }
+}
+
 /* ---------- métricas ---------- */
 .metricas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 860px) { .metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
