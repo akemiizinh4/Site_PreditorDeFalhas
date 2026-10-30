@@ -1,9 +1,11 @@
+<meta charset="utf-8">
 <title>Preditor de Falhas na Rede</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="css/estilo.css">
+<link rel="stylesheet" href="css/dashboard.css">
 
 <header class="nav">
   <div class="faixa nav-in">
@@ -18,6 +20,7 @@
       <a href="#resultados">Resultados</a>
       <a href="#limites">Limitações</a>
       <a href="#equipe">Equipe</a>
+      <a href="#dashboard">Dashboard</a>
     </nav>
   </div>
 </header>
@@ -251,7 +254,136 @@
     </div>
   </section>
 
-  <section class="alt" id="limites">
+  <section class="alt" id="dashboard">
+    <div class="faixa painel">
+      <span class="rotulo">Dashboard em tempo real</span>
+<div class="painel-topo">
+      <div>
+        <h2>Monitoramento e predição ao vivo</h2>
+        <p class="painel-lede">Cada ciclo envia três sondagens, mede o tempo de ida e volta e a perda, e passa a medição pela <strong>árvore de decisão treinada no projeto</strong> para prever a classe da próxima.</p>
+      </div>
+      <div class="controles">
+        <button class="btn btn-primario" id="btn-iniciar" type="button">Iniciar monitoramento</button>
+        <button class="btn btn-fantasma" id="btn-parar" type="button" disabled>Parar</button>
+      </div>
+  </div>
+
+  <div class="abas" role="tablist">
+      <button class="aba ativa" id="t-vivo" role="tab" aria-selected="true" aria-controls="p-vivo" type="button">Ao vivo</button>
+      <button class="aba" id="t-fluxos" role="tab" aria-selected="false" aria-controls="p-fluxos" type="button">Os 131 caminhos do RIPE Atlas</button>
+  </div>
+
+  <!-- ===================== AO VIVO ===================== -->
+  <section id="p-vivo" role="tabpanel" aria-labelledby="t-vivo">
+
+      <div class="aviso" id="fase">
+        <span class="aviso-ponto" aria-hidden="true"></span>
+        <div>
+          <b id="fase-titulo">Parado</b>
+          <p id="fase-texto">Clique em “Iniciar monitoramento”. Os primeiros 20 ciclos servem para o sistema aprender o normal de cada alvo; só depois ele começa a classificar.</p>
+        </div>
+      </div>
+
+      <div class="dispositivos" id="dispositivos"></div>
+
+      <div class="bloco">
+        <div class="bloco-topo">
+          <h2>Histórico das últimas 40 medições</h2>
+          <div class="legenda-cores">
+            <span><i class="pt ok"></i>OK</span>
+            <span><i class="pt risco"></i>RISCO</span>
+            <span><i class="pt falha"></i>FALHA</span>
+            <span><i class="pt sim"></i>evento simulado</span>
+          </div>
+        </div>
+        <div class="historico-rolagem">
+          <svg id="historico" viewBox="0 0 860 220" role="img" aria-label="Histórico das últimas medições, com a latência de cada uma e a cor da classe prevista."></svg>
+        </div>
+        <p class="rodape-nota" id="hist-nota">Sem medições ainda.</p>
+      </div>
+
+      <div class="bloco">
+        <div class="bloco-topo">
+          <h2>Simular evento</h2>
+          <span class="rodape-nota">Injeta um problema artificial na próxima medição, para demonstrar RISCO e FALHA sem depender do estado real da rede.</span>
+        </div>
+        <div class="botoes-sim">
+          <button class="btn btn-fantasma" data-sim="latencia" type="button" disabled>Pico de latência <i>acima do P99</i></button>
+          <button class="btn btn-fantasma" data-sim="jitter" type="button" disabled>Jitter alto <i>acima do P95</i></button>
+          <button class="btn btn-fantasma" data-sim="perda" type="button" disabled>Perder 1 de 3 pacotes</button>
+          <button class="btn btn-fantasma" data-sim="queda" type="button" disabled>Queda total <i>3 de 3</i></button>
+        </div>
+        <p class="rodape-nota" id="sim-estado">Nenhum evento injetado. Cada botão mantém o problema por 4 ciclos, calculado em cima do baseline do próprio alvo. Toda medição marcada com <b>SIM</b> no histórico e na tabela é simulada; as demais são medições reais.</p>
+        <p class="rodape-nota" style="margin-top:10px"><b>O que esperar.</b> Os dois eventos de latência e queda levam o estado a FALHA e a <em>previsão</em> da árvore acompanha a partir do segundo ciclo. Os dois eventos de risco levam o estado a RISCO, mas a previsão tende a continuar OK: esse é o ponto fraco medido do modelo — recall de RISCO de 0,47, e o erro mais comum na matriz de confusão é justamente RISCO previsto como OK.</p>
+      </div>
+
+      <div class="bloco">
+        <div class="bloco-topo"><h2>Registro</h2></div>
+        <div class="tabela-rolagem">
+          <table id="registro">
+            <thead><tr>
+              <th>#</th><th>Alvo</th><th>Hora</th><th class="n">Latência</th><th class="n">Perda</th>
+              <th class="n">Razão P95</th><th>Estado agora</th><th>Previsão p/ a próxima</th><th class="n">Confiança</th><th>Origem</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <details class="detalhes">
+        <summary>Como esta aba funciona, e o que ela não é</summary>
+        <div class="detalhes-corpo">
+          <p><b>A medição é real.</b> Cada ciclo faz três requisições ao alvo e mede o tempo de ida e volta de cada uma, do seu computador, agora. A perda é contada quando uma requisição falha ou estoura 2 segundos.</p>
+          <p><b>Não é ping ICMP.</b> O navegador não envia pacotes ICMP nem enxerga a rede local — isso é uma limitação do navegador, não do projeto. O que medimos é o tempo de ida e volta de uma requisição HTTP, que é uma medida de rede real, mas não é o mesmo que o <code>ping</code> do sistema operacional. A versão do projeto que roda em Python usa ICMP de verdade.</p>
+          <p><b>O baseline é provisório.</b> O modelo compara cada medição com o P95 e o P99 <em>daquele caminho</em>. Os caminhos do RIPE Atlas têm um baseline congelado com sete dias de observação; um alvo novo, não. Por isso o dashboard observa 20 ciclos antes de classificar e usa esse baseline provisório, que é menos confiável que o de sete dias.</p>
+          <p><b>O TTL não existe aqui.</b> Duas das 21 variáveis dependem do TTL do pacote, que o navegador não expõe. Elas recebem o valor <code>−1</code>, que é exatamente a sentinela que o modelo foi treinado para receber quando falta esse dado.</p>
+          <p><b>É a árvore, não a floresta.</b> O modelo final do projeto é um Random Forest de 200 árvores, com 244 MB — grande demais para rodar no navegador. Aqui roda a árvore de decisão do projeto (profundidade 12, folhas com no mínimo 100 amostras), que obteve macro-F1 de <b>0,7673</b> no teste contra <b>0,7675</b> do Random Forest. A diferença entre as duas é de 0,0002.</p>
+        </div>
+      </details>
+  </section>
+
+  <!-- ===================== FLUXOS ===================== -->
+  <section id="p-fluxos" role="tabpanel" aria-labelledby="t-fluxos" hidden>
+      <div class="aviso azul">
+        <div>
+          <b>Por que cada caminho precisa da sua própria régua</b>
+          <p>Estes são os 131 caminhos reais usados no projeto, com o normal de cada um congelado entre 21 e 28/09/2026. Repare na distância entre o menor e o maior: é por isso que um limite fixo de latência não funciona.</p>
+        </div>
+      </div>
+
+      <div class="resumo" id="resumo-fluxos"></div>
+
+      <div class="bloco">
+        <div class="bloco-topo">
+          <h2>P95 da latência de cada caminho</h2>
+          <span class="rodape-nota">Escala logarítmica. Cada barra é um caminho.</span>
+        </div>
+        <div class="historico-rolagem">
+          <svg id="grafico-fluxos" viewBox="0 0 860 260" role="img" aria-label="P95 da latência dos 131 caminhos, em escala logarítmica."></svg>
+        </div>
+      </div>
+
+      <div class="bloco">
+        <div class="bloco-topo">
+          <h2>Tabela dos caminhos</h2>
+          <input type="search" id="busca" placeholder="filtrar por id do caminho…" aria-label="Filtrar caminhos">
+        </div>
+        <div class="tabela-rolagem">
+          <table id="tabela-fluxos">
+            <thead><tr>
+              <th>Caminho</th><th class="n">Mediana</th><th class="n">P95</th><th class="n">P99</th>
+              <th class="n">P95 jitter</th><th class="n">TTL</th><th>Conjunto</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="rodape-nota" id="nota-tabela"></p>
+      </div>
+  </section>
+    </div>
+  </section>
+
+  <section id="limites">
     <div class="faixa">
       <div class="cabeca">
         <span class="rotulo pink">Limitações</span>
@@ -314,3 +446,4 @@
 </footer>
 
 <script src="js/malha.js" defer></script>
+<script src="js/dashboard.js" defer></script>
