@@ -1,0 +1,644 @@
+<title>Preditor de Falhas na Rede</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: painel de monitoramento escuro — malha de nós animada no herói, cards de vidro sobre azul-noturno, dados em monoespaçada */
+:root {
+  --fundo: #090D16;
+  --fundo-2: #0C1220;
+  --superficie: #131B2E;
+  --vidro: rgba(19, 27, 46, 0.55);
+  --vidro-forte: rgba(19, 27, 46, 0.82);
+  --borda: rgba(148, 173, 214, 0.14);
+  --borda-forte: rgba(148, 173, 214, 0.26);
+  --texto: #F8FAFC;
+  --texto-suave: #92A4C4;
+  --ciano: #00F5FF;
+  --roxo: #7B2CBF;
+  --roxo-claro: #A663F2;
+  --pink: #FF007A;
+  --verde: #2BE38B;
+  --ambar: #FFB224;
+  --ui: "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--fundo); color: var(--texto);
+  font-family: var(--ui); font-size: 16px; line-height: 1.65;
+  -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 60; background: var(--fundo); }
+
+h1, h2, h3, h4 { margin: 0; line-height: 1.12; text-wrap: balance; letter-spacing: -0.025em; font-weight: 800; }
+p { margin: 0; }
+a { color: var(--ciano); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 4px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--ciano); outline-offset: 3px; border-radius: 6px; }
+.mono { font-family: var(--mono); }
+.num { font-variant-numeric: tabular-nums; }
+
+.faixa {
+  max-width: 1200px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.rotulo {
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--ciano);
+}
+.rotulo.roxo { color: var(--roxo-claro); }
+.rotulo.pink { color: var(--pink); }
+
+.gradiente {
+  background: linear-gradient(104deg, var(--ciano) 0%, #63A4FF 42%, var(--roxo-claro) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* ---------- navegação ---------- */
+.nav {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 50;
+  background: rgba(9, 13, 22, 0.72); backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--borda);
+}
+.nav-in { display: flex; align-items: center; gap: 16px; padding-block: 12px; }
+.marca { display: flex; align-items: center; gap: 11px; min-width: 0; color: var(--texto); }
+.marca:hover { text-decoration: none; }
+.marca img { width: 30px; height: 30px; border-radius: 8px; flex: none; box-shadow: 0 0 16px rgba(0, 245, 255, 0.22); }
+.marca b { font-size: 0.95rem; font-weight: 700; white-space: nowrap; letter-spacing: -0.01em; }
+.nav nav { margin-left: auto; display: flex; gap: 22px; align-items: center; }
+.nav nav a { color: var(--texto-suave); font-size: 0.88rem; font-weight: 600; white-space: nowrap; }
+.nav nav a:hover { color: var(--ciano); text-decoration: none; }
+@media (max-width: 940px) { .nav nav { display: none; } }
+
+/* ---------- botões ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 9px; justify-content: center;
+  font-family: var(--ui); font-size: 0.92rem; font-weight: 700; letter-spacing: -0.01em;
+  padding: 13px 24px; border-radius: 11px; border: 1px solid transparent; cursor: pointer;
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease, background .22s ease;
+}
+.btn-primario {
+  background: linear-gradient(100deg, var(--ciano), #4FD8FF);
+  color: #04131A; box-shadow: 0 0 0 1px rgba(0,245,255,.4), 0 8px 30px rgba(0, 245, 255, 0.28);
+}
+.btn-primario:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(0,245,255,.6), 0 12px 42px rgba(0, 245, 255, 0.45); text-decoration: none; }
+.btn-fantasma { background: rgba(255,255,255,0.04); color: var(--texto); border-color: var(--borda-forte); }
+.btn-fantasma:hover { border-color: var(--roxo-claro); box-shadow: 0 0 26px rgba(123, 44, 191, 0.4); transform: translateY(-2px); text-decoration: none; }
+.btn[aria-disabled="true"] { background: rgba(255,255,255,0.04); color: var(--texto-suave); border-color: var(--borda); box-shadow: none; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .btn-primario { animation: respira 3.2s ease-in-out infinite; }
+  @keyframes respira {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(0,245,255,.4), 0 8px 30px rgba(0, 245, 255, 0.22); }
+    50% { box-shadow: 0 0 0 1px rgba(0,245,255,.65), 0 10px 40px rgba(0, 245, 255, 0.5); }
+  }
+}
+
+/* ---------- herói ---------- */
+.heroi { position: relative; overflow: hidden; border-bottom: 1px solid var(--borda); }
+#malha { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0.55; }
+.heroi::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 18% 12%, rgba(0, 245, 255, 0.12), transparent 70%),
+    radial-gradient(55% 55% at 88% 78%, rgba(123, 44, 191, 0.20), transparent 72%),
+    linear-gradient(180deg, transparent 55%, var(--fundo) 100%);
+}
+.heroi .faixa { position: relative; z-index: 2; padding-block: 72px 76px; }
+.heroi-grade { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr); gap: 52px; align-items: center; }
+@media (max-width: 960px) { .heroi-grade { grid-template-columns: minmax(0, 1fr); gap: 40px; } .heroi .faixa { padding-block: 52px 56px; } }
+
+.heroi h1 { font-size: clamp(2.5rem, 6.4vw, 4.4rem); font-weight: 800; letter-spacing: -0.04em; margin-block: 18px 20px; }
+.heroi .lede { font-size: clamp(1.02rem, 2vw, 1.18rem); color: var(--texto-suave); max-width: 54ch; }
+.heroi .lede b { color: var(--texto); font-weight: 600; }
+.acoes { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px; }
+
+.selos { display: flex; gap: 26px; flex-wrap: wrap; margin-top: 34px; padding-top: 26px; border-top: 1px solid var(--borda); }
+.selo { display: grid; gap: 2px; }
+.selo .v { font-family: var(--mono); font-size: 1.45rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.selo .l { font-size: 0.78rem; color: var(--texto-suave); letter-spacing: 0.02em; }
+
+/* ---------- card do monitor ---------- */
+.monitor {
+  background: var(--vidro-forte); backdrop-filter: blur(16px) saturate(130%);
+  border: 1px solid var(--borda-forte); border-radius: 18px; overflow: hidden;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 245, 255, 0.07);
+}
+.monitor-topo { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--borda); flex-wrap: wrap; }
+.vivo { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ciano); }
+.ponto { width: 9px; height: 9px; border-radius: 50%; background: var(--ciano); box-shadow: 0 0 10px var(--ciano); flex: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .ponto { animation: pisca 1.8s ease-in-out infinite; }
+  @keyframes pisca { 0%, 100% { opacity: 1; box-shadow: 0 0 10px var(--ciano); } 50% { opacity: .45; box-shadow: 0 0 3px var(--ciano); } }
+}
+.monitor-topo .fluxo { margin-left: auto; font-family: var(--mono); font-size: 0.74rem; color: var(--texto-suave); }
+.monitor-corpo { padding: 18px; display: grid; gap: 16px; }
+.monitor svg { display: block; width: 100%; height: auto; }
+.leituras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.leitura { background: rgba(255,255,255,0.03); border: 1px solid var(--borda); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; min-width: 0; }
+.leitura .k { font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--texto-suave); }
+.leitura .v { font-family: var(--mono); font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.leitura.ok .v { color: var(--verde); } .leitura.risco .v { color: var(--ambar); } .leitura.falha .v { color: var(--pink); }
+.monitor-rodape { padding: 12px 18px 16px; border-top: 1px solid var(--borda); color: var(--texto-suave); font-size: 0.78rem; line-height: 1.5; }
+
+/* ---------- seções ---------- */
+section { padding-block: 78px; position: relative; }
+section.alt { background: var(--fundo-2); border-block: 1px solid var(--borda); }
+.cabeca { display: grid; gap: 10px; margin-bottom: 34px; max-width: 62ch; }
+.cabeca h2 { font-size: clamp(1.8rem, 4vw, 2.6rem); }
+.cabeca p { color: var(--texto-suave); font-size: 1.04rem; }
+.corrido { max-width: 66ch; display: grid; gap: 15px; color: var(--texto-suave); font-size: 1rem; }
+.corrido b, .corrido strong { color: var(--texto); font-weight: 600; }
+
+/* ---------- cards de vidro ---------- */
+.cartao {
+  background: var(--vidro); backdrop-filter: blur(12px); border: 1px solid var(--borda);
+  border-radius: 14px; padding: 22px; display: grid; gap: 9px; align-content: start; min-width: 0;
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+}
+.cartao:hover { transform: translateY(-4px); border-color: rgba(0, 245, 255, 0.4); box-shadow: 0 16px 40px rgba(0,0,0,.45), 0 0 26px rgba(0, 245, 255, 0.14); }
+.cartao h3 { font-size: 1.05rem; font-weight: 700; }
+.cartao p { color: var(--texto-suave); font-size: 0.93rem; line-height: 1.6; }
+.grade-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.grade-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+@media (max-width: 820px) { .grade-3, .grade-2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- classes ---------- */
+.classes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 820px) { .classes { grid-template-columns: minmax(0, 1fr); } }
+.classe {
+  position: relative; background: var(--vidro); backdrop-filter: blur(12px);
+  border: 1px solid var(--borda); border-radius: 14px; padding: 22px; display: grid; gap: 8px; min-width: 0;
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; overflow: hidden;
+}
+.classe::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--c); box-shadow: 0 0 18px var(--c); }
+.classe:hover { transform: translateY(-4px); border-color: var(--c); box-shadow: 0 16px 40px rgba(0,0,0,.45), 0 0 30px color-mix(in srgb, var(--c) 28%, transparent); }
+.classe.ok { --c: var(--verde); } .classe.risco { --c: var(--ambar); } .classe.falha { --c: var(--pink); }
+.classe b { font-family: var(--mono); font-size: 1.05rem; font-weight: 700; letter-spacing: 0.1em; color: var(--c); }
+.classe p { color: var(--texto-suave); font-size: 0.93rem; line-height: 1.55; }
+.classe .acao { margin-top: 4px; font-family: var(--mono); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c); opacity: .85; }
+
+/* ---------- pipeline ---------- */
+.etapas { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; counter-reset: e; }
+@media (max-width: 1040px) { .etapas { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .etapas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.etapa {
+  position: relative; background: var(--vidro); backdrop-filter: blur(10px); border: 1px solid var(--borda);
+  border-radius: 12px; padding: 15px 13px; display: grid; gap: 5px; align-content: start; min-width: 0;
+  transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+}
+.etapa:hover { transform: translateY(-3px); border-color: rgba(166, 99, 242, 0.5); box-shadow: 0 0 24px rgba(123, 44, 191, 0.26); }
+.etapa::before {
+  counter-increment: e; content: counter(e, decimal-leading-zero);
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 700;
+  background: linear-gradient(100deg, var(--ciano), var(--roxo-claro));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.etapa b { font-size: 0.92rem; font-weight: 700; line-height: 1.25; }
+.etapa span { color: var(--texto-suave); font-size: 0.79rem; line-height: 1.45; }
+
+/* ---------- métricas ---------- */
+.metricas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 860px) { .metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .metricas { grid-template-columns: minmax(0, 1fr); } }
+.metrica {
+  background: var(--vidro); backdrop-filter: blur(12px); border: 1px solid var(--borda);
+  border-radius: 14px; padding: 22px; display: grid; gap: 5px; min-width: 0;
+  transition: border-color .25s ease, box-shadow .25s ease;
+}
+.metrica:hover { border-color: rgba(0,245,255,.35); box-shadow: 0 0 26px rgba(0, 245, 255, 0.12); }
+.metrica .v { font-family: var(--mono); font-size: clamp(1.8rem, 4.4vw, 2.3rem); font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.metrica .l { color: var(--texto-suave); font-size: 0.85rem; line-height: 1.45; }
+
+/* ---------- barras ---------- */
+.barras { display: grid; gap: 15px; }
+.linha { display: grid; grid-template-columns: 230px minmax(0, 1fr) 76px; gap: 16px; align-items: center; }
+@media (max-width: 700px) { .linha { grid-template-columns: minmax(0, 1fr) 68px; } .linha .trilho { grid-column: 1 / -1; grid-row: 2; } }
+.linha .nome { font-size: 0.94rem; color: var(--texto-suave); }
+.linha .nome b { color: var(--texto); }
+.trilho { height: 22px; background: rgba(255,255,255,0.04); border: 1px solid var(--borda); border-radius: 6px; overflow: hidden; }
+.preenche { height: 100%; background: rgba(146, 164, 196, 0.3); }
+.preenche.topo { background: linear-gradient(90deg, var(--roxo), var(--ciano)); box-shadow: 0 0 22px rgba(0, 245, 255, 0.35); }
+.preenche.segundo { background: linear-gradient(90deg, rgba(123, 44, 191, .7), rgba(0, 245, 255, .55)); }
+.linha .v { font-family: var(--mono); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.94rem; }
+.nota { color: var(--texto-suave); font-size: 0.82rem; line-height: 1.5; margin-top: 12px; max-width: 70ch; }
+
+/* ---------- tabela ---------- */
+.tabela { overflow-x: auto; border: 1px solid var(--borda); border-radius: 14px; background: var(--vidro); backdrop-filter: blur(12px); margin-top: 30px; }
+table { border-collapse: collapse; width: 100%; min-width: 540px; font-size: 0.93rem; }
+th, td { padding: 13px 18px; text-align: left; border-bottom: 1px solid var(--borda); }
+th { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--texto-suave); font-weight: 700; }
+td { color: var(--texto-suave); }
+td:first-child { color: var(--texto); }
+td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td.n { color: var(--ciano); font-weight: 700; }
+td.n.sec { color: var(--texto-suave); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+
+/* ---------- figuras ---------- */
+figure { margin: 0; display: grid; gap: 11px; min-width: 0; }
+figure .moldura { background: #fff; border: 1px solid var(--borda-forte); border-radius: 14px; padding: 12px; overflow-x: auto; box-shadow: 0 0 0 1px rgba(0,245,255,.08), 0 14px 40px rgba(0,0,0,.5); }
+figure img { display: block; width: 100%; height: auto; }
+figcaption { color: var(--texto-suave); font-size: 0.85rem; line-height: 1.55; }
+
+/* ---------- limitações ---------- */
+.limites { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; max-width: 72ch; }
+.limites li {
+  background: var(--vidro); border: 1px solid var(--borda); border-left: 3px solid var(--pink);
+  border-radius: 0 12px 12px 0; padding: 15px 20px; color: var(--texto-suave); font-size: 0.96rem; line-height: 1.6;
+  transition: border-color .25s ease, box-shadow .25s ease;
+}
+.limites li:hover { box-shadow: 0 0 26px rgba(255, 0, 122, 0.14); }
+.limites b { color: var(--texto); font-weight: 700; }
+
+/* ---------- vídeo ---------- */
+.video {
+  position: relative; overflow: hidden; border: 1px solid var(--borda-forte); border-radius: 18px;
+  padding: 46px 40px; display: grid; gap: 14px; justify-items: center; text-align: center;
+  background:
+    radial-gradient(70% 120% at 50% 0%, rgba(123, 44, 191, 0.26), transparent 70%),
+    radial-gradient(60% 110% at 50% 100%, rgba(0, 245, 255, 0.14), transparent 70%),
+    var(--vidro-forte);
+  backdrop-filter: blur(14px);
+}
+.video h2 { font-size: clamp(1.7rem, 4vw, 2.4rem); }
+.video p { color: var(--texto-suave); max-width: 52ch; }
+@media (max-width: 600px) { .video { padding: 34px 20px; } }
+
+/* ---------- ficha ---------- */
+dl.ficha { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px 26px; margin: 0; }
+@media (max-width: 700px) { dl.ficha { grid-template-columns: minmax(0, 1fr); gap: 3px 0; } dl.ficha dd { margin-bottom: 16px; } }
+dl.ficha dt { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ciano); padding-top: 5px; }
+dl.ficha dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--texto-suave); font-size: 0.96rem; }
+dl.ficha dd em { color: var(--texto); font-style: italic; }
+
+.equipe { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 30px; }
+.pessoa {
+  display: inline-flex; align-items: center; gap: 9px; padding: 7px 15px 7px 7px;
+  background: var(--vidro); border: 1px solid var(--borda); border-radius: 999px; font-size: 0.88rem; color: var(--texto-suave);
+  transition: border-color .25s ease, box-shadow .25s ease;
+}
+.pessoa:hover { border-color: rgba(166,99,242,.5); box-shadow: 0 0 20px rgba(123,44,191,.25); }
+.ini {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 700; color: #04131A;
+  background: linear-gradient(135deg, var(--ciano), var(--roxo-claro));
+}
+
+footer { border-top: 1px solid var(--borda); background: var(--fundo-2); }
+footer .faixa { padding-block: 30px 44px; color: var(--texto-suave); font-size: 0.83rem; display: flex; gap: 10px 28px; flex-wrap: wrap; }
+</style>
+
+<header class="nav">
+  <div class="faixa nav-in">
+    <a class="marca" href="#topo">
+      <img src="img/logo.png" alt="">
+      <b>Preditor de Falhas na Rede</b>
+    </a>
+    <nav aria-label="Seções da página">
+      <a href="#problema">Problema</a>
+      <a href="#funciona">Como funciona</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#resultados">Resultados</a>
+      <a href="#limites">Limitações</a>
+      <a href="#equipe">Equipe</a>
+    </nav>
+  </div>
+</header>
+
+<div class="heroi" id="topo">
+  <canvas id="malha" aria-hidden="true"></canvas>
+  <div class="faixa">
+    <div class="heroi-grade">
+      <div>
+        <span class="rotulo">Estrutura de Dados II · Grupo 7</span>
+        <h1>Antes da queda,<br><span class="gradiente">existe um sinal.</span></h1>
+        <p class="lede">Toda rede tem um normal, e cada caminho tem o seu. Aprendemos o de <b>131 caminhos reais da internet</b> para prever se a <b>próxima medição de ping</b> vai ser normal, de risco ou de falha.</p>
+        <div class="acoes">
+          <a class="btn btn-primario" href="#resultados">Ver os resultados</a>
+          <a class="btn btn-fantasma" href="https://github.com/GzTop1/Redes-Projeto" target="_blank" rel="noopener">Repositório no GitHub</a>
+        </div>
+        <div class="selos">
+          <div class="selo"><span class="v gradiente">131</span><span class="l">caminhos monitorados</span></div>
+          <div class="selo"><span class="v gradiente">695.132</span><span class="l">medições coletadas</span></div>
+          <div class="selo"><span class="v gradiente">0,7675</span><span class="l">F1 macro no teste</span></div>
+        </div>
+      </div>
+
+      <div class="monitor">
+        <div class="monitor-topo">
+          <span class="vivo"><span class="ponto"></span>Motor preditivo</span>
+          <span class="fluxo">fluxo 6407_1360</span>
+        </div>
+        <div class="monitor-corpo">
+          <svg viewBox="0 0 520 210" role="img" aria-label="Traçado de latência de um caminho atravessando as faixas do P95 e do P99 do próprio caminho.">
+            <defs>
+              <linearGradient id="gTraco" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#00F5FF"/><stop offset="62%" stop-color="#A663F2"/><stop offset="100%" stop-color="#FF007A"/>
+              </linearGradient>
+              <linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#00F5FF" stop-opacity="0.22"/><stop offset="100%" stop-color="#00F5FF" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <rect x="0" y="8" width="520" height="44" fill="#FF007A" fill-opacity="0.07"/>
+            <rect x="0" y="52" width="520" height="36" fill="#FFB224" fill-opacity="0.07"/>
+            <line x1="0" y1="52" x2="520" y2="52" stroke="#FF007A" stroke-width="1.2" stroke-dasharray="4 5" stroke-opacity="0.8"/>
+            <line x1="0" y1="88" x2="520" y2="88" stroke="#FFB224" stroke-width="1.2" stroke-dasharray="4 5" stroke-opacity="0.8"/>
+            <text x="514" y="26" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#FF007A">P99 · FALHA</text>
+            <text x="514" y="74" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#FFB224">P95 · RISCO</text>
+            <text x="6" y="122" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#2BE38B" fill-opacity="0.9">FAIXA NORMAL</text>
+            <path id="area" fill="url(#gArea)" d="M0,150 L34,146 L68,152 L102,144 L136,148 L170,140 L204,146 L238,136 L272,116 L306,86 L340,76 L374,44 L408,38 L442,88 L476,134 L510,146 L520,148 L520,178 L0,178 Z"/>
+            <polyline id="traco" fill="none" stroke="url(#gTraco)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"
+              points="0,150 34,146 68,152 102,144 136,148 170,140 204,146 238,136 272,116 306,86 340,76 374,44 408,38 442,88 476,134 510,146 520,148"/>
+            <circle cx="170" cy="140" r="5" fill="#2BE38B"/>
+            <circle cx="306" cy="86" r="5" fill="#FFB224"/>
+            <circle cx="374" cy="44" r="5.5" fill="#FF007A"/>
+            <circle cx="510" cy="146" r="5" fill="#2BE38B"/>
+            <line x1="0" y1="178" x2="520" y2="178" stroke="#94ADD6" stroke-opacity="0.16" stroke-width="1"/>
+            <text x="0" y="200" font-family="JetBrains Mono, monospace" font-size="10" fill="#92A4C4">uma medição a cada 4 min</text>
+            <text x="520" y="200" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#92A4C4">tempo →</text>
+          </svg>
+          <div class="leituras">
+            <div class="leitura ok"><span class="k">OK</span><span class="v">90,9%</span></div>
+            <div class="leitura risco"><span class="k">Risco</span><span class="v">8,7%</span></div>
+            <div class="leitura falha"><span class="k">Falha</span><span class="v">0,5%</span></div>
+          </div>
+        </div>
+        <p class="monitor-rodape">Caso real do conjunto de teste: medição classificada como OK, e o modelo prevê OK para a próxima com 90,9% de confiança. O traçado ao lado é ilustrativo — a página não está conectada à rede.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<main>
+  <section id="problema">
+    <div class="faixa">
+      <div class="cabeca">
+        <span class="rotulo">O problema</span>
+        <h2>Redes não caem de uma vez</h2>
+        <p>Antes da queda, a latência sobe e alguns pacotes começam a se perder.</p>
+      </div>
+      <div class="corrido" style="margin-bottom:34px">
+        <p>O projeto parte do <strong>ping</strong>, que existe em qualquer rede e mede três coisas a cada envio: o tempo de ida e volta (latência), quantos pacotes não voltaram (perda) e o quanto esse tempo variou (jitter).</p>
+        <p>A dificuldade está em definir o que é "alto". <strong>Não existe um limite de latência que sirva para todos os caminhos.</strong> Um caminho curto normal fica em 1 ms; um que atravessa o oceano, normal, fica em 300 ms. Um limite fixo mediria distância, não problema.</p>
+      </div>
+      <div class="classes">
+        <div class="classe ok"><b>OK</b><p>Nenhum pacote perdido, latência e jitter dentro da faixa normal do caminho.</p><span class="acao">Nenhuma ação</span></div>
+        <div class="classe risco"><b>RISCO</b><p>1 de 3 pacotes perdido, ou latência ou jitter acima do P95 do caminho.</p><span class="acao">Observar</span></div>
+        <div class="classe falha"><b>FALHA</b><p>2 ou 3 de 3 pacotes perdidos, ou latência acima do P99 do caminho.</p><span class="acao">Investigar</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt" id="funciona">
+    <div class="faixa">
+      <div class="cabeca">
+        <span class="rotulo roxo">Como funciona</span>
+        <h2>Cada caminho é a sua própria régua</h2>
+        <p>A ideia central cabe em uma frase: comparar o caminho com ele mesmo.</p>
+      </div>
+      <div class="corrido" style="margin-bottom:34px">
+        <p>Na <strong>primeira semana</strong>, o sistema observa cada caminho e congela o normal dele: a mediana, o P95 e o P99 da latência e do jitter. Na <strong>segunda semana</strong>, cada medição vira uma comparação com esse normal — uma razão, não um número absoluto. Por isso o modelo nunca vê latência em milissegundos, nem país, nem endereço IP, nem distância.</p>
+      </div>
+      <div class="grade-3">
+        <div class="cartao"><h3>Caminho = sonda → âncora</h3><p>Cada caminho liga uma sonda de origem a uma âncora de destino do RIPE Atlas: 30 destinos em 30 países, com 3 a 5 sondas cada.</p></div>
+        <div class="cartao"><h3>O normal congelado</h3><p>Sete dias de referência definem o P95 e o P99 de cada caminho. Só vale com pelo menos 30 medições válidas e 80% de cobertura.</p></div>
+        <div class="cartao"><h3>A memória recente</h3><p>São 21 variáveis: a medição atual contra o normal, mais o que aconteceu nas últimas 3, 6 e 12 medições — cerca de 12, 24 e 48 minutos.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pipeline">
+    <div class="faixa">
+      <div class="cabeca">
+        <span class="rotulo">Pipeline</span>
+        <h2>Do ping ao alerta</h2>
+        <p>Sete etapas, cada uma usando só o que a anterior entregou.</p>
+      </div>
+      <div class="etapas">
+        <div class="etapa"><b>Origem</b><span>API REST pública do RIPE Atlas, pings IPv4</span></div>
+        <div class="etapa"><b>Coleta</b><span>420 arquivos JSON, 14 dias, 695.132 medições</span></div>
+        <div class="etapa"><b>Preparo</b><span>Perda, jitter e cobertura mínima de 80%</span></div>
+        <div class="etapa"><b>Normal e rótulo</b><span>P95/P99 na semana A, classes na semana B</span></div>
+        <div class="etapa"><b>Variáveis</b><span>21 medidas relativas ao normal do caminho</span></div>
+        <div class="etapa"><b>Treino</b><span>58 modelos comparados, escolha só na validação</span></div>
+        <div class="etapa"><b>Predição</b><span>Classe da próxima medição; teste aberto uma vez</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt" id="dados">
+    <div class="faixa">
+      <div class="cabeca">
+        <span class="rotulo roxo">Dados e avaliação</span>
+        <h2>Duas semanas de pings reais</h2>
+        <p>Malha pública do RIPE Atlas, de 21/09 a 05/10/2026.</p>
+      </div>
+      <div class="corrido" style="margin-bottom:34px">
+        <p>A separação entre treino, validação e teste é <strong>por tempo, não por sorteio</strong>: treino nos cinco primeiros dias, validação no sexto, teste no último, com 60 minutos de intervalo entre os blocos para que nenhuma informação vaze de um para o outro. Além disso, <strong>13 caminhos ficaram inteiramente fora do treino</strong>, para medir o que acontece diante de uma rota que o modelo nunca viu.</p>
+      </div>
+      <div class="metricas">
+        <div class="metrica"><span class="v gradiente">131</span><span class="l">caminhos usados, de 150 coletados</span></div>
+        <div class="metrica"><span class="v gradiente">328.421</span><span class="l">medições rotuladas na semana B</span></div>
+        <div class="metrica"><span class="v gradiente">87%</span><span class="l">delas são OK — por isso a acurácia engana</span></div>
+        <div class="metrica"><span class="v gradiente">58</span><span class="l">modelos comparados antes da escolha</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="resultados">
+    <div class="faixa">
+      <div class="cabeca">
+        <span class="rotulo">Resultados</span>
+        <h2>Melhor que repetir o estado atual</h2>
+        <p>A régua honesta não é o acaso: é supor que a próxima medição será igual à de agora.</p>
+      </div>
+      <div class="barras" role="img" aria-label="F1 macro no teste: Random Forest 0,7675; árvore de decisão 0,7673; repetir o estado atual 0,7302; responder sempre OK 0,3082.">
+        <div class="linha"><span class="nome"><b>Random Forest</b> (escolhido)</span><div class="trilho"><div class="preenche topo" style="width:76.75%"></div></div><span class="v">0,7675</span></div>
+        <div class="linha"><span class="nome">Árvore de decisão</span><div class="trilho"><div class="preenche segundo" style="width:76.73%"></div></div><span class="v">0,7673</span></div>
+        <div class="linha"><span class="nome">Repetir o estado atual</span><div class="trilho"><div class="preenche" style="width:73.02%"></div></div><span class="v">0,7302</span></div>
+        <div class="linha"><span class="nome">Responder sempre OK</span><div class="trilho"><div class="preenche" style="width:30.82%"></div></div><span class="v">0,3082</span></div>
+      </div>
+      <p class="nota">F1 macro no teste, de 0 a 1. São 40.453 medições do último dia, e o teste foi aberto uma única vez, em 11/10/2026.</p>
+
+      <div class="tabela">
+        <table>
+          <thead><tr><th>Indicador no teste</th><th class="n">Random Forest</th><th class="n">Árvore</th></tr></thead>
+          <tbody>
+            <tr><td>F1 macro</td><td class="n">0,7675</td><td class="n sec">0,7673</td></tr>
+            <tr><td>Falhas detectadas (recall de FALHA)</td><td class="n">0,66</td><td class="n sec">0,66</td></tr>
+            <tr><td>Quando avisa FALHA, está certo (precisão)</td><td class="n">0,82</td><td class="n sec">0,82</td></tr>
+            <tr><td>Riscos detectados (recall de RISCO)</td><td class="n">0,47</td><td class="n sec">0,47</td></tr>
+            <tr><td>Acurácia</td><td class="n">0,93</td><td class="n sec">0,93</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grade-2" style="margin-top:30px">
+        <figure>
+          <div class="moldura"><img src="img/matrizes_teste.jpg" alt="Matrizes de confusão da árvore de decisão e do Random Forest no teste"></div>
+          <figcaption>Matrizes de confusão no teste. A linha é a classe real e a coluna é a prevista. O erro mais comum é RISCO previsto como OK.</figcaption>
+        </figure>
+        <figure>
+          <div class="moldura"><img src="img/importancia_variaveis.jpg" alt="Importância das variáveis na árvore de decisão e no Random Forest"></div>
+          <figcaption>As variáveis que mais pesam comparam a latência com o normal do caminho e contam quantas medições recentes ficaram acima dele.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt" id="limites">
+    <div class="faixa">
+      <div class="cabeca">
+        <span class="rotulo pink">Limitações</span>
+        <h2>O que ele ainda não faz</h2>
+        <p>Medimos também onde o modelo falha. Isso faz parte do resultado.</p>
+      </div>
+      <ul class="limites">
+        <li><b>Antecipa pouco o começo de uma falha.</b> Quando tudo estava normal e a próxima medição foi FALHA, acertou 8 de 411 casos. Funciona como um detector que confirma o problema, não como um alarme que o prevê.</li>
+        <li><b>Caminhos curtos novos.</b> Nos 13 caminhos que nunca viu, não detectou as degradações dos caminhos mais curtos.</li>
+        <li><b>Dados limitados.</b> São 14 dias, só ping IPv4 com 3 pacotes, e sondas instaladas em data centers — não em casas ou escritórios.</li>
+        <li><b>O rótulo é uma regra, não um laudo.</b> RISCO e FALHA vêm do P95 e do P99 de cada caminho, e não de uma falha confirmada pela operadora.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="video">
+    <div class="faixa">
+      <div class="video">
+        <span class="rotulo">Vídeo pitch · 90 segundos</span>
+        <h2>O projeto em 90 segundos</h2>
+        <p>O problema, a ideia do normal por caminho, como o modelo funciona e o que os números mostram.</p>
+        <a class="btn btn-primario" id="link-video" href="#video" aria-disabled="true" style="margin-top:8px">Vídeo em breve</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="equipe">
+    <div class="faixa">
+      <div class="cabeca">
+        <span class="rotulo roxo">Equipe e acesso</span>
+        <h2>Quem construiu</h2>
+      </div>
+      <div class="equipe">
+        <span class="pessoa"><span class="ini">DG</span>Davi Gabriel Borges dos Santos</span>
+        <span class="pessoa"><span class="ini">FA</span>Fernanda Akemi Martins Sanpei</span>
+        <span class="pessoa"><span class="ini">GA</span>Geziel de Andrade</span>
+        <span class="pessoa"><span class="ini">HA</span>Hendrick Ambriola</span>
+        <span class="pessoa"><span class="ini">IW</span>Isaac William Braz</span>
+      </div>
+      <dl class="ficha">
+        <dt>Curso</dt><dd>Ciência da Computação, 4º semestre · Centro Universitário Braz Cubas</dd>
+        <dt>Orientadora</dt><dd>Profª Andrea Ono Sakai — Estrutura de Dados II</dd>
+        <dt>Repositório</dt><dd><a href="https://github.com/GzTop1/Redes-Projeto" target="_blank" rel="noopener">github.com/GzTop1/Redes-Projeto</a></dd>
+        <dt>Dados</dt><dd>RIPE Atlas, malha pública de medições de ping, acessada pela API REST (somente leitura)</dd>
+        <dt>Ferramentas</dt><dd>Python, pandas, NumPy, scikit-learn e Google Colab</dd>
+        <dt>Referências</dt><dd>RIPE NCC, <em>RIPE Atlas REST API manual</em> · Breiman, <em>Random forests</em> (2001) · Breiman et al., <em>Classification and regression trees</em> (1984) · Pedregosa et al., <em>Scikit-learn: machine learning in Python</em> (2011)</dd>
+      </dl>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="faixa">
+    <span>Preditor de Falhas na Rede · Grupo 7</span>
+    <span>Centro Universitário Braz Cubas · 2026</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var tela = document.getElementById('malha');
+  if (!tela || !tela.getContext) return;
+  var ctx = tela.getContext('2d');
+  var parado = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var nos = [], arestas = [], pulsos = [], L = 0, A = 0, dpr = 1;
+
+  function dimensionar() {
+    var caixa = tela.parentElement.getBoundingClientRect();
+    L = Math.max(320, caixa.width); A = Math.max(320, caixa.height);
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    tela.width = L * dpr; tela.height = A * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    montar();
+  }
+
+  function montar() {
+    var quantos = L < 700 ? 18 : 30;
+    nos = [];
+    for (var i = 0; i < quantos; i++) {
+      nos.push({
+        x: Math.random() * L, y: Math.random() * A,
+        vx: (Math.random() - 0.5) * 0.14, vy: (Math.random() - 0.5) * 0.14,
+        r: 1.2 + Math.random() * 1.8
+      });
+    }
+    arestas = []; pulsos = [];
+    var limite = L < 700 ? 150 : 200;
+    for (var a = 0; a < nos.length; a++) {
+      for (var b = a + 1; b < nos.length; b++) {
+        var dx = nos[a].x - nos[b].x, dy = nos[a].y - nos[b].y;
+        if (dx * dx + dy * dy < limite * limite) arestas.push([a, b]);
+      }
+    }
+    for (var p = 0; p < Math.min(10, arestas.length); p++) {
+      pulsos.push({ e: Math.floor(Math.random() * arestas.length), t: Math.random(), v: 0.0022 + Math.random() * 0.0038 });
+    }
+  }
+
+  function quadro() {
+    ctx.clearRect(0, 0, L, A);
+    var limite = L < 700 ? 150 : 200;
+
+    for (var i = 0; i < arestas.length; i++) {
+      var n1 = nos[arestas[i][0]], n2 = nos[arestas[i][1]];
+      var dx = n1.x - n2.x, dy = n1.y - n2.y, d = Math.sqrt(dx * dx + dy * dy);
+      if (d > limite) continue;
+      ctx.strokeStyle = 'rgba(123, 44, 191,' + (0.3 * (1 - d / limite)).toFixed(3) + ')';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y); ctx.stroke();
+    }
+
+    for (var j = 0; j < pulsos.length; j++) {
+      var pu = pulsos[j], ar = arestas[pu.e];
+      if (!ar) continue;
+      var q1 = nos[ar[0]], q2 = nos[ar[1]];
+      var px = q1.x + (q2.x - q1.x) * pu.t, py = q1.y + (q2.y - q1.y) * pu.t;
+      var halo = ctx.createRadialGradient(px, py, 0, px, py, 9);
+      halo.addColorStop(0, 'rgba(0, 245, 255, 0.85)');
+      halo.addColorStop(1, 'rgba(0, 245, 255, 0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI * 2); ctx.fill();
+      if (!parado) {
+        pu.t += pu.v;
+        if (pu.t > 1) { pu.t = 0; pu.e = Math.floor(Math.random() * arestas.length); }
+      }
+    }
+
+    for (var k = 0; k < nos.length; k++) {
+      var n = nos[k];
+      ctx.fillStyle = 'rgba(0, 245, 255, 0.5)';
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill();
+      if (!parado) {
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < 0 || n.x > L) n.vx *= -1;
+        if (n.y < 0 || n.y > A) n.vy *= -1;
+      }
+    }
+    if (!parado) requestAnimationFrame(quadro);
+  }
+
+  dimensionar();
+  quadro();
+  var espera;
+  window.addEventListener('resize', function () {
+    clearTimeout(espera);
+    espera = setTimeout(function () { dimensionar(); if (parado) quadro(); }, 180);
+  });
+})();
+</script>
