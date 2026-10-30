@@ -90,11 +90,12 @@
   <section id="problema">
     <div class="faixa">
       <div class="cabeca">
-        <span class="rotulo">O problema</span>
+        <span class="rotulo">Problema e objetivo</span>
         <h2>Redes não caem de uma vez</h2>
         <p>Antes da queda, a latência sobe e alguns pacotes começam a se perder.</p>
       </div>
       <div class="corrido" style="margin-bottom:34px">
+        <p>O <strong>Preditor de Falhas na Rede</strong> é um projeto acadêmico que desenvolve um sistema preditor para a qualidade de caminhos da internet. <strong>Seu objetivo é prever se a próxima medição de ping de um caminho será normal, de risco ou de falha</strong>, a partir de medições públicas de ping do RIPE Atlas em 131 caminhos pelo mundo — com potencial para avisar quem opera a rede: investigar quando houver falha, observar quando houver risco e não agir quando estiver tudo bem.</p>
         <p>O projeto parte do <strong>ping</strong>, que existe em qualquer rede e mede três coisas a cada envio: o tempo de ida e volta (latência), quantos pacotes não voltaram (perda) e o quanto esse tempo variou (jitter).</p>
         <p>A dificuldade está em definir o que é "alto". <strong>Não existe um limite de latência que sirva para todos os caminhos.</strong> Um caminho curto normal fica em 1 ms; um que atravessa o oceano, normal, fica em 300 ms. Um limite fixo mediria distância, não problema.</p>
       </div>
@@ -139,6 +140,53 @@
         <div class="etapa"><b>Variáveis</b><span>21 medidas relativas ao normal do caminho</span></div>
         <div class="etapa"><b>Treino</b><span>58 modelos comparados, escolha só na validação</span></div>
         <div class="etapa"><b>Predição</b><span>Classe da próxima medição; teste aberto uma vez</span></div>
+      </div>
+
+      <div class="esquema" role="img" aria-label="Schema do pipeline: as sete etapas do projeto com a entrada e a saída de cada uma, da consulta à API do RIPE Atlas até a classe prevista para a próxima medição.">
+        <span class="esquema-titulo">Schema do pipeline — entradas e saídas de cada etapa</span>
+        <div class="esquema-cabeca" aria-hidden="true"><span>Entrada</span><span>Etapa</span><span>Saída</span></div>
+
+        <div class="esquema-linha">
+          <div class="cel entrada">Catálogo de âncoras e de medições públicas de ping da API REST do RIPE Atlas</div>
+          <div class="cel passo"><span class="n">01</span><b>Origem dos dados</b></div>
+          <div class="cel saida"><span class="destaque">30 destinos em 30 países</span> e 150 caminhos sonda → âncora selecionados por cotas</div>
+        </div>
+
+        <div class="esquema-linha">
+          <div class="cel entrada">Os 150 caminhos, no período de 21/09 a 05/10/2026</div>
+          <div class="cel passo"><span class="n">02</span><b>Coleta e organização</b></div>
+          <div class="cel saida"><span class="destaque">420 arquivos JSON</span> brutos, com 695.132 medições</div>
+        </div>
+
+        <div class="esquema-linha">
+          <div class="cel entrada">Os arquivos JSON brutos</div>
+          <div class="cel passo"><span class="n">03</span><b>Pré-processamento</b></div>
+          <div class="cel saida">Tabela com RTT, perda, jitter e TTL por medição. Caminhos com menos de 80% de cobertura ficam de fora: restam <span class="destaque">131</span></div>
+        </div>
+
+        <div class="esquema-linha">
+          <div class="cel entrada">A tabela das duas semanas, separadas em Período A e Período B</div>
+          <div class="cel passo"><span class="n">04</span><b>Normal e rótulo</b></div>
+          <div class="cel saida"><span class="destaque">baseline por caminho</span> (P95 e P99 congelados) e a classe OK, RISCO ou FALHA de <span class="destaque">328.421</span> medições</div>
+        </div>
+
+        <div class="esquema-linha">
+          <div class="cel entrada">Medições do Período B e o baseline de cada caminho</div>
+          <div class="cel passo"><span class="n">05</span><b>Extração de atributos</b></div>
+          <div class="cel saida"><span class="destaque">21 variáveis</span> relativas ao normal, mais o alvo: a classe da medição seguinte</div>
+        </div>
+
+        <div class="esquema-linha">
+          <div class="cel entrada">O conjunto dividido no tempo, com 60 min de intervalo entre os blocos</div>
+          <div class="cel passo"><span class="n">06</span><b>Treino e validação</b></div>
+          <div class="cel saida">58 modelos comparados e <span class="destaque">um escolhido</span> na validação: Random Forest, congelado</div>
+        </div>
+
+        <div class="esquema-linha">
+          <div class="cel entrada">Uma medição nova do caminho e o baseline dele</div>
+          <div class="cel passo"><span class="n">07</span><b>Predição e resultado</b></div>
+          <div class="cel saida"><span class="destaque">A classe prevista para a próxima medição</span> e a probabilidade de cada uma das três</div>
+        </div>
       </div>
     </div>
   </section>
@@ -209,6 +257,9 @@
         <span class="rotulo pink">Limitações</span>
         <h2>O que ele ainda não faz</h2>
         <p>Medimos também onde o modelo falha. Isso faz parte do resultado.</p>
+      </div>
+      <div class="corrido" style="margin-bottom:26px">
+        <p>As previsões dependem da qualidade e das características dos dados analisados. Por isso, devem ser interpretadas como <strong>estimativas do modelo, e não como garantias</strong>. As limitações específicas que identificamos são estas:</p>
       </div>
       <ul class="limites">
         <li><b>Antecipa pouco o começo de uma falha.</b> Quando tudo estava normal e a próxima medição foi FALHA, acertou 8 de 411 casos. Funciona como um detector que confirma o problema, não como um alarme que o prevê.</li>
