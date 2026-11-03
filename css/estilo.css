@@ -68,7 +68,18 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--ciano); outline
 .nav nav { margin-left: auto; display: flex; gap: 22px; align-items: center; }
 .nav nav a { color: var(--texto-suave); font-size: 0.88rem; font-weight: 600; white-space: nowrap; }
 .nav nav a:hover { color: var(--ciano); text-decoration: none; }
-@media (max-width: 940px) { .nav nav { display: none; } }
+/* no celular o menu não some: vira uma barra que desliza de lado */
+@media (max-width: 940px) {
+  .nav nav { gap: 16px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+             scrollbar-width: none; max-width: 52vw; }
+  .nav nav::-webkit-scrollbar { display: none; }
+  .nav nav a { font-size: 0.84rem; }
+  .marca b { font-size: 0.88rem; }
+}
+@media (max-width: 620px) {
+  .nav-in { flex-wrap: wrap; row-gap: 8px; padding-bottom: 8px; }
+  .nav nav { margin-left: 0; width: 100%; max-width: 100%; padding-bottom: 2px; }
+}
 
 /* ---------- botões ---------- */
 .btn {
