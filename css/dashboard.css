@@ -137,3 +137,7 @@
 .tabela-rolagem { overflow-x: auto; max-width: 100%; border: 1px solid var(--borda); border-radius: 12px; }
 .tabela-rolagem table { min-width: 620px; }
 #sim-registro { min-width: 560px; }
+
+/* a lista que abre no seletor é desenhada pelo navegador com fundo claro:
+   sem isto, o texto herda o branco do site e fica ilegível */
+.controles-sim select option { background: #FFFFFF; color: #0A0A0A; }
