@@ -52,6 +52,7 @@
     baseline = lerCsv(res[1]);
     montarDispositivos();
     montarFluxos();
+    montarSimulacao();
     $("#btn-iniciar").disabled = false;
   }).catch(function (e) {
     $("#fase-titulo").textContent = "Não consegui carregar os dados do modelo";
@@ -183,7 +184,8 @@
       var j95 = jan.map(function (m) { return razao(m.b.jitter, base.p95_jitter); }).filter(function (x) { return x !== SENTINELA; });
       v["rtt_p95_max_w" + n] = r95.length ? Math.max.apply(null, r95) : SENTINELA;
       v["jitter_p95_max_w" + n] = j95.length ? Math.max.apply(null, j95) : SENTINELA;
-      v["n_rtt_acima_p95_w" + n] = r95.filter(function (x) { return x > 1; }).length;
+      // sem nenhum RTT na janela, a variável fica ausente: sentinela, como no metadados.json
+      v["n_rtt_acima_p95_w" + n] = r95.length ? r95.filter(function (x) { return x > 1; }).length : SENTINELA;
     });
 
     var seguidas = 0;
@@ -467,6 +469,193 @@
     $("#nota-tabela").textContent = fs.length + " de " + baseline.length + " caminhos. Latências em milissegundos, calculadas entre 21 e 28/09/2026.";
   }
 
+  /* ---------------- simulação nos caminhos reais do RIPE Atlas ----------------
+     Porte fiel do preditor.py do Isaac: mesmo gerador de execuções, mesma regra
+     de rótulo e as mesmas 21 variáveis. A diferença é o modelo: aqui roda a
+     árvore de decisão, porque o Random Forest não cabe no navegador. */
+
+  var JANELAS = [3, 6, 12];
+  var simBase = null, simHist = [], simLog = [];
+
+  function gauss(media, desvio) {                       // Box–Muller
+    var u = 1 - Math.random(), v = Math.random();
+    return media + desvio * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  function entre(a, b) { return a + Math.random() * (b - a); }
+
+  function baseDoFluxo(f) {
+    return { id: f.id_fluxo, mediana: +f.mediana_rtt_A, p95: +f.p95_rtt_A, p99: +f.p99_rtt_A,
+             mediana_jitter: +f.mediana_jitter_A, p95_jitter: +f.p95_jitter_A, ttl: +f.ttl_baseline };
+  }
+
+  function resumir(rtts, ttl) {
+    var validos = rtts.filter(function (r) { return r !== null; });
+    var perda = (rtts.length - validos.length) / rtts.length * 100;
+    if (!validos.length) return { perda: perda, avg: null, mn: null, mx: null, jitter: null, ttl: null };
+    var m = validos.reduce(function (a, b) { return a + b; }, 0) / validos.length;
+    var jit = 0;
+    if (validos.length > 1) {
+      jit = Math.sqrt(validos.reduce(function (a, r) { return a + (r - m) * (r - m); }, 0) / validos.length);
+    }
+    return { perda: perda, avg: m, mn: Math.min.apply(null, validos), mx: Math.max.apply(null, validos), jitter: jit, ttl: ttl };
+  }
+
+  function regra(b, ex) {
+    if (ex.perda >= 66) return "FALHA";
+    if (ex.avg !== null && ex.avg > b.p99) return "FALHA";
+    if (ex.perda >= 33) return "RISCO";
+    if (ex.avg !== null && ex.avg > b.p95) return "RISCO";
+    if (ex.jitter !== null && ex.jitter > b.p95_jitter) return "RISCO";
+    return "OK";
+  }
+
+  function candidata(b, cen) {
+    var disp = Math.max(b.mediana_jitter, 1e-3);
+    var tiro = function (alvo, d) {
+      return [0, 1, 2].map(function () { return Math.max(0.01, gauss(alvo, d)); });
+    };
+    if (cen === "OK") return tiro(b.mediana + (b.p95 - b.mediana) * entre(-0.2, 0.5), disp);
+    if (cen === "RISCO") {
+      var d = b.p99 > b.p95 ? Math.min(disp, (b.p99 - b.p95) / 6) : disp / 4;
+      return tiro(b.p95 + (b.p99 - b.p95) * entre(0.3, 0.8), Math.max(d, 1e-4));
+    }
+    if (Math.random() < 0.6) return tiro(b.p99 * entre(1.3, 1.8), disp);
+    return [null, null, null];
+  }
+
+  function gerarExecucao(b, cen) {
+    for (var i = 0; i < 60; i++) {
+      var ex = resumir(candidata(b, cen), b.ttl);
+      if (regra(b, ex) === cen) return ex;
+    }
+    var reserva = cen === "OK" ? [b.mediana, b.mediana, b.mediana]
+                : cen === "RISCO" ? [(b.p95 + b.p99) / 2, (b.p95 + b.p99) / 2, (b.p95 + b.p99) / 2]
+                : [null, null, null];
+    return resumir(reserva, b.ttl);
+  }
+
+  function instantaneas(b, ex) {
+    var amp = ex.avg !== null ? razao(ex.mx - ex.mn, ex.avg) : null;
+    var delta = null, reset = 0;
+    if (ex.ttl !== null) {
+      var d = ex.ttl - b.ttl;
+      delta = Math.max(-16, Math.min(16, d));
+      reset = Math.abs(d) >= 64 ? 1 : 0;
+    }
+    var nulo = function (x) { return x === SENTINELA ? null : x; };
+    return {
+      perda_pct: ex.perda,
+      rtt_ausente: ex.avg === null ? 1 : 0,
+      razao_rtt_p95: nulo(razao(ex.avg, b.p95)),
+      razao_rtt_p99: nulo(razao(ex.avg, b.p99)),
+      razao_jitter_p95: nulo(razao(ex.jitter, b.p95_jitter)),
+      amplitude_rtt_rel: nulo(amp),
+      delta_ttl_clip: delta,
+      ttl_reset: reset
+    };
+  }
+
+  function featuresDoHistorico(hist) {
+    var atual = hist[hist.length - 1], f = {};
+    Object.keys(atual).forEach(function (k) { f[k] = atual[k] === null ? SENTINELA : atual[k]; });
+    JANELAS.forEach(function (w) {
+      var jan = hist.slice(Math.max(0, hist.length - w));
+      var r95 = jan.map(function (x) { return x.razao_rtt_p95; }).filter(function (x) { return x !== null; });
+      var rj = jan.map(function (x) { return x.razao_jitter_p95; }).filter(function (x) { return x !== null; });
+      f["perda_media_w" + w] = jan.reduce(function (a, x) { return a + x.perda_pct; }, 0) / jan.length;
+      f["rtt_p95_max_w" + w] = r95.length ? Math.max.apply(null, r95) : SENTINELA;
+      f["jitter_p95_max_w" + w] = rj.length ? Math.max.apply(null, rj) : SENTINELA;
+      f["n_rtt_acima_p95_w" + w] = r95.length ? r95.filter(function (x) { return x > 1; }).length : SENTINELA;
+    });
+    var consec = 0;
+    for (var i = hist.length - 1; i >= 0; i--) { if (hist[i].perda_pct > 0) consec++; else break; }
+    f.perdas_consecutivas = consec;
+    return f;
+  }
+
+  function simSelecionar(id) {
+    var f = baseline.filter(function (x) { return x.id_fluxo === id; })[0];
+    if (!f) return;
+    simBase = baseDoFluxo(f);
+    simHist = []; simLog = [];
+    $("#sim-base").innerHTML = "Normal congelado deste caminho, entre 21 e 28/09/2026: mediana <b>" +
+      simBase.mediana.toFixed(1) + " ms</b>, P95 <b>" + simBase.p95.toFixed(1) + " ms</b>, P99 <b>" +
+      simBase.p99.toFixed(1) + " ms</b>, P95 do jitter <b>" + simBase.p95_jitter.toFixed(2) + " ms</b>.";
+    simDesenhar();
+  }
+
+  function simGerar(n) {
+    if (!simBase) return;
+    var cen = $("#sel-cenario").value;
+    for (var i = 0; i < n; i++) {
+      var ex = gerarExecucao(simBase, cen);
+      simHist.push(instantaneas(simBase, ex));
+      if (simHist.length > 12) simHist.shift();
+      var reg = { ex: ex, cenario: cen, agora: regra(simBase, ex), previsao: null, probs: null };
+      if (simHist.length >= 1) {
+        var f = featuresDoHistorico(simHist);
+        var vetor = {};
+        arvore.features.forEach(function (nome) { vetor[nome] = f[nome]; });
+        var p = prever(vetor);
+        reg.previsao = p.classe; reg.probs = p.probs;
+      }
+      simLog.push(reg);
+      if (simLog.length > 30) simLog.shift();
+    }
+    simDesenhar();
+  }
+
+  function simDesenhar() {
+    var ult = simLog[simLog.length - 1];
+    var cx = $("#sim-resultado");
+    if (!ult) { cx.innerHTML = '<p class="rodape-nota">Escolha um caminho e um cenário, e gere as execuções.</p>'; }
+    else {
+      var h = '<div class="disp-topo"><span class="disp-nome">Caminho ' + simBase.id + '</span>' +
+              '<span class="selo ' + ult.agora + '">' + ult.agora + "</span></div>";
+      h += '<div class="disp-grade">';
+      h += '<div class="disp-item"><span class="k">Latência</span><span class="v">' +
+           (ult.ex.avg === null ? "sem resposta" : ult.ex.avg.toFixed(1) + " ms") + "</span></div>";
+      h += '<div class="disp-item"><span class="k">Perda</span><span class="v">' + ult.ex.perda.toFixed(0) + "%</span></div>";
+      h += '<div class="disp-item"><span class="k">Jitter</span><span class="v">' +
+           (ult.ex.jitter === null ? "—" : ult.ex.jitter.toFixed(2) + " ms") + "</span></div>";
+      h += "</div>";
+      h += '<div class="disp-previsao"><span class="titulo">Previsão para a próxima execução</span><div class="barras-prob">';
+      ["OK", "RISCO", "FALHA"].forEach(function (k) {
+        var p = ult.probs ? ult.probs[k] : 0;
+        h += '<div class="prob ' + k + '"><span>' + k + '</span><div class="trilho"><div class="pf" style="width:' +
+             (p * 100).toFixed(1) + '%"></div></div><span class="val">' + (p * 100).toFixed(0) + "%</span></div>";
+      });
+      h += "</div><p class=\"disp-base\">Histórico acumulado: " + simHist.length + " de 12 execuções. As janelas de 3, 6 e 12 só ficam completas com 12.</p></div>";
+      cx.innerHTML = h;
+    }
+
+    var tb = $("#sim-registro tbody");
+    tb.innerHTML = simLog.slice().reverse().slice(0, 14).map(function (r, i) {
+      var conf = r.probs && r.previsao ? (r.probs[r.previsao] * 100).toFixed(0) + "%" : "—";
+      return "<tr><td>" + (simLog.length - i) + "</td>" +
+        "<td>" + r.cenario + "</td>" +
+        '<td class="n">' + (r.ex.avg === null ? "sem resposta" : r.ex.avg.toFixed(1) + " ms") + "</td>" +
+        '<td class="n">' + r.ex.perda.toFixed(0) + "%</td>" +
+        '<td><span class="cls ' + r.agora + '">' + r.agora + "</span></td>" +
+        '<td><span class="cls ' + (r.previsao || "") + '">' + (r.previsao || "—") + "</span></td>" +
+        '<td class="n">' + conf + "</td></tr>";
+    }).join("");
+  }
+
+  function montarSimulacao() {
+    var sel = $("#sel-fluxo");
+    sel.innerHTML = baseline.map(function (f) {
+      var novo = (f.conjunto_no_projeto || "").indexOf("nao_visto") === 0;
+      return '<option value="' + f.id_fluxo + '">' + f.id_fluxo + " — normal de " +
+             parseFloat(f.mediana_rtt_A).toFixed(0) + " ms" + (novo ? " (fora do treino)" : "") + "</option>";
+    }).join("");
+    sel.addEventListener("change", function () { simSelecionar(sel.value); });
+    $("#btn-sim-12").addEventListener("click", function () { simGerar(12); });
+    $("#btn-sim-1").addEventListener("click", function () { simGerar(1); });
+    $("#btn-sim-zerar").addEventListener("click", function () { simSelecionar(sel.value); });
+    simSelecionar(baseline[0].id_fluxo);
+  }
+
   /* ---------------- controles ---------------- */
 
   $("#btn-iniciar").disabled = true;
@@ -495,7 +684,7 @@
     });
   });
 
-  var abas = { "t-vivo": "p-vivo", "t-fluxos": "p-fluxos" };
+  var abas = { "t-vivo": "p-vivo", "t-simular": "p-simular", "t-fluxos": "p-fluxos" };
   Object.keys(abas).forEach(function (t) {
     document.getElementById(t).addEventListener("click", function () {
       Object.keys(abas).forEach(function (o) {
