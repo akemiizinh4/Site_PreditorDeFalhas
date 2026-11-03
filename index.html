@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Preditor de Falhas na Rede</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -271,7 +272,8 @@
 
   <div class="abas" role="tablist">
       <button class="aba ativa" id="t-vivo" role="tab" aria-selected="true" aria-controls="p-vivo" type="button">Ao vivo</button>
-      <button class="aba" id="t-fluxos" role="tab" aria-selected="false" aria-controls="p-fluxos" type="button">Os 131 caminhos do RIPE Atlas</button>
+      <button class="aba" id="t-simular" role="tab" aria-selected="false" aria-controls="p-simular" type="button">Simular num caminho real</button>
+        <button class="aba" id="t-fluxos" role="tab" aria-selected="false" aria-controls="p-fluxos" type="button">Os 131 caminhos do RIPE Atlas</button>
   </div>
 
   <!-- ===================== AO VIVO ===================== -->
@@ -341,6 +343,44 @@
           <p><b>É a árvore, não a floresta.</b> O modelo final do projeto é um Random Forest de 200 árvores, com 244 MB — grande demais para rodar no navegador. Aqui roda a árvore de decisão do projeto (profundidade 12, folhas com no mínimo 100 amostras), que obteve macro-F1 de <b>0,7673</b> no teste contra <b>0,7675</b> do Random Forest. A diferença entre as duas é de 0,0002.</p>
         </div>
       </details>
+  </section>
+
+  <!-- ===================== SIMULAÇÃO ===================== -->
+  <section id="p-simular" role="tabpanel" aria-labelledby="t-simular" hidden>
+    <div class="aviso azul">
+      <div>
+        <b>Usando o normal de verdade, de um caminho de verdade</b>
+        <p>Na aba anterior o baseline é provisório, calculado na hora. Aqui não: escolha um dos 131 caminhos do RIPE Atlas e o sistema usa o <b>P95 e o P99 congelados daquele caminho</b>, medidos ao longo de sete dias. As execuções são geradas a partir desse normal, no cenário que você pedir, e passam pela mesma árvore treinada.</p>
+      </div>
+    </div>
+
+    <div class="bloco">
+      <div class="controles-sim">
+        <label>Caminho<select id="sel-fluxo"></select></label>
+        <label>Cenário<select id="sel-cenario">
+          <option value="OK">OK</option>
+          <option value="RISCO">RISCO</option>
+          <option value="FALHA">FALHA</option>
+        </select></label>
+        <button class="btn btn-primario" id="btn-sim-12" type="button">Gerar 12 execuções</button>
+        <button class="btn btn-fantasma" id="btn-sim-1" type="button">Gerar mais 1</button>
+        <button class="btn btn-fantasma" id="btn-sim-zerar" type="button">Limpar</button>
+      </div>
+      <p class="rodape-nota" id="sim-base" style="margin-top:14px"></p>
+    </div>
+
+    <div class="bloco" id="sim-resultado"></div>
+
+    <div class="bloco">
+      <div class="bloco-topo"><h2>Execuções geradas</h2></div>
+      <div class="tabela-rolagem">
+        <table id="sim-registro">
+          <thead><tr><th>#</th><th>Cenário pedido</th><th class="n">Latência</th><th class="n">Perda</th><th>Estado agora</th><th>Previsão p/ a próxima</th><th class="n">Confiança</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="rodape-nota" style="margin-top:12px">O gerador sorteia execuções em volta do normal do caminho e descarta as que não caem na classe pedida — é o mesmo método do <code>preditor.py</code> que está no repositório. A previsão vem da árvore de decisão; a versão em Python usa o Random Forest, com desempenho praticamente igual: 0,7675 contra 0,7673.</p>
+    </div>
   </section>
 
   <!-- ===================== FLUXOS ===================== -->
