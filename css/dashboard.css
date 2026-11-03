@@ -25,7 +25,8 @@
   border-radius: 0 12px 12px 0; padding: 15px 20px;
 }
 .aviso.azul { border-left-color: var(--ciano); }
-.aviso b { display: block; font-size: 0.98rem; margin-bottom: 3px; }
+.aviso > div > b { display: block; font-size: 0.98rem; margin-bottom: 3px; }
+.aviso p b { color: var(--texto); font-weight: 700; }
 .aviso p { color: var(--texto-suave); font-size: 0.9rem; line-height: 1.55; }
 .aviso-ponto { width: 10px; height: 10px; border-radius: 50%; background: var(--texto-suave); flex: none; margin-top: 7px; }
 .aviso.aprendendo { border-left-color: var(--ambar); }
@@ -120,3 +121,19 @@
 
 /* o estilo.css dá padding vertical grande a toda <section>; aqui não serve */
 .painel section { padding-block: 0; border-top: 0; }
+
+/* controles da simulação */
+.controles-sim { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.controles-sim label { display: grid; gap: 6px; font-family: var(--mono); font-size: 0.62rem;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--texto-suave); }
+.controles-sim select {
+  background: rgba(255,255,255,.04); border: 1px solid var(--borda); border-radius: 9px;
+  padding: 11px 13px; color: var(--texto); font-family: var(--mono); font-size: 0.86rem; min-width: 190px;
+}
+#sim-base b { color: var(--texto); font-family: var(--mono); }
+#sim-resultado { display: grid; gap: 14px; }
+
+/* caixa de rolagem das tabelas do dashboard — sem isto, a tabela empurra a página no celular */
+.tabela-rolagem { overflow-x: auto; max-width: 100%; border: 1px solid var(--borda); border-radius: 12px; }
+.tabela-rolagem table { min-width: 620px; }
+#sim-registro { min-width: 560px; }
